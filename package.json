@@ -1,0 +1,7 @@
+{
+  "name": "wechat-entreprise-core",
+  "version": "1.0.0",
+  "private": true,
+  "description": "XRK-AGT 企业微信通道：qyapi REST + 回调加解密；不引入 Java wecom-sdk 的 npm 等价包（无官方 Node SDK）",
+  "type": "module"
+}
