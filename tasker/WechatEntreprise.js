@@ -336,4 +336,12 @@ export function getWecomTasker() {
 
 export { _wecomTasker as wecomTaskerSingleton };
 
-if (!Bot.tasker?.some((t) => t?.path === _wecomTasker.path)) Bot.tasker.push(_wecomTasker);
+export function registerWecomTasker(bot = globalThis.Bot) {
+  if (!bot) return;
+  if (!Array.isArray(bot.tasker)) bot.tasker = [];
+  if (!bot.tasker.some((t) => t?.path === _wecomTasker.path)) {
+    bot.tasker.push(_wecomTasker);
+  }
+}
+
+registerWecomTasker();
