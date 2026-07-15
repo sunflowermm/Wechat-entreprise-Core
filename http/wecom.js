@@ -3,7 +3,7 @@
  * 路由：`{callbackPath}/:accountId`，由 `init` 读取 `wecom.yaml` 后挂载。
  */
 import express from "express";
-import BotUtil from "../../../src/utils/botutil.js";
+import RuntimeUtil from "../../../src/utils/runtime-util.js";
 import { getWecomCallbackBase } from "../internal/account.js";
 import { wecomTaskerSingleton } from "../tasker/WechatEntreprise.js";
 
@@ -16,7 +16,7 @@ const readWecomXmlBody = express.text({
 async function handleWecomGetVerify(req, res, bot) {
   const result = await wecomTaskerSingleton.verifyCallbackUrl(req.params.accountId, req.query);
   if (!result.ok) {
-    Bot.makeLog("warn", `[WeCom] URL 校验失败: ${result.reason}`, "wecom.http");
+    AgentRuntime.makeLog("warn", `[WeCom] URL 校验失败: ${result.reason}`, "wecom.http");
     return res.status(403).send("verify failed");
   }
   return res.status(200).send(result.echostr);
@@ -36,7 +36,7 @@ export default {
 
   init: async function (app, bot) {
     const base = await getWecomCallbackBase();
-    BotUtil.makeLog("info", `[WeCom] 回调路由: GET/POST ${base}/:accountId`, "wecom.http");
+    RuntimeUtil.makeLog("info", `[WeCom] 回调路由: GET/POST ${base}/:accountId`, "wecom.http");
 
     const self = this;
     app.get(`${base}/:accountId`, self.wrapHandler(handleWecomGetVerify, bot));

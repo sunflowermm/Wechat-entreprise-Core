@@ -1,16 +1,16 @@
 /**
  * Wechat-entreprise-Core 企业微信通道配置
  *
- * - **逻辑路径**（相对项目根）：`data/server_bots/{port}/wecom.yaml`，`{port}` 来自 `resolveServerPort(global.cfg)`（与 Feishu 的 `feishu.yaml` 规则一致）
+ * - **逻辑路径**（相对项目根）：`data/server_bots/{port}/wecom.yaml`，`{port}` 来自 `resolveServerPort(global.runtimeConfig)`（与 Feishu 的 `feishu.yaml` 规则一致）
  * - **物理路径**：`ConfigBase` 使用 `paths.root` 拼接，即 `{项目根目录}/data/server_bots/{port}/wecom.yaml`
- * - 业务通过 `ConfigManager.get('wecom')` 后 `read()` 使用
+ * - 业务通过 `CommonConfigRegistry.get('wecom')` 后 `read()` 使用
  */
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
 import fsSync from "fs";
 import ConfigBase from "../../../src/infrastructure/commonconfig/commonconfig.js";
-import BotUtil from "../../../src/utils/botutil.js";
+import RuntimeUtil from "../../../src/utils/runtime-util.js";
 import { resolveServerPort } from "../shared.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,9 +22,9 @@ export default class WecomConfig extends ConfigBase {
       name: "wecom",
       displayName: "企业微信通道配置",
       description: "企业微信自建应用回调与消息发送",
-      filePath: (cfg) => {
-        const port = resolveServerPort(cfg ?? global.cfg);
-        if (!port) throw new Error("WecomConfig: 需要端口 (global.cfg.port 或 node app server <port>)");
+      filePath: (runtimeConfig) => {
+        const port = resolveServerPort(runtimeConfig ?? global.runtimeConfig);
+        if (!port) throw new Error("WecomConfig: 需要端口 (global.runtimeConfig.port 或 node app server <port>)");
         return path.join("data", "server_bots", String(port), "wecom.yaml");
       },
       fileType: "yaml",
@@ -77,9 +77,9 @@ export default class WecomConfig extends ConfigBase {
       try {
         await fs.mkdir(path.dirname(targetPath), { recursive: true });
         await fs.copyFile(DEFAULT_TEMPLATE, targetPath);
-        BotUtil.makeLog("info", `[WeCom] 已从默认模板创建: ${targetPath}`, "WecomConfig");
+        RuntimeUtil.makeLog("info", `[WeCom] 已从默认模板创建: ${targetPath}`, "WecomConfig");
       } catch (e) {
-        BotUtil.makeLog("warn", `[WeCom] 创建默认配置失败: ${e?.message}`, "WecomConfig");
+        RuntimeUtil.makeLog("warn", `[WeCom] 创建默认配置失败: ${e?.message}`, "WecomConfig");
       }
     }
     return await super.read(useCache);

@@ -1,8 +1,8 @@
 # Wechat-entreprise-Core 插件目录
 
-本 Core 的**业务插件**放在此目录下的 `*.js` 文件，由 `PluginsLoader` 自动加载（与 `core/system-Core/plugin/` 相同约定）。
+本 Core 的**业务插件**放在此目录下的 `*.js` 文件，由 `PluginLoader` 自动加载（与 `core/system-Core/plugin/` 相同约定）。
 
-- **基类**：`src/infrastructure/plugins/plugin.js`
+- **基类**：`src/infrastructure/plugins/plugin-base.js`
 - **示例**：`core/system-Core/plugin/*.js`
 - **文档**：`docs/plugin-base.md`、`docs/plugins-loader.md`
 

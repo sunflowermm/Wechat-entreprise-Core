@@ -3,23 +3,23 @@
  */
 import { DEFAULT_ACCOUNT_ID, normalizeCallbackBase } from "../shared.js";
 
-export function listAccountIds(cfg) {
-  const accounts = cfg?.accounts;
+export function listAccountIds(runtimeConfig) {
+  const accounts = runtimeConfig?.accounts;
   if (!accounts || typeof accounts !== "object") return [DEFAULT_ACCOUNT_ID];
   return Object.keys(accounts).filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
-export function mergeAccountConfig(cfg, accountId) {
-  const { accounts, ...base } = cfg ?? {};
+export function mergeAccountConfig(runtimeConfig, accountId) {
+  const { accounts, ...base } = runtimeConfig ?? {};
   return { ...base, ...(accounts?.[accountId] ?? {}) };
 }
 
-export function resolveAccount(cfg, accountId) {
-  const merged = mergeAccountConfig(cfg, accountId);
+export function resolveAccount(runtimeConfig, accountId) {
+  const merged = mergeAccountConfig(runtimeConfig, accountId);
   const corpId = merged?.corpId?.trim();
   const agentId = merged?.agentId?.trim();
   const agentSecret = merged?.agentSecret?.trim();
-  const enabled = (cfg?.enabled !== false) && (merged.enabled !== false);
+  const enabled = (runtimeConfig?.enabled !== false) && (merged.enabled !== false);
   return {
     accountId: accountId ?? DEFAULT_ACCOUNT_ID,
     enabled,
@@ -33,11 +33,11 @@ export function resolveAccount(cfg, accountId) {
   };
 }
 
-export function listEnabledAccounts(cfg) {
-  const accounts = listAccountIds(cfg)
-    .map((id) => resolveAccount(cfg, id))
+export function listEnabledAccounts(runtimeConfig) {
+  const accounts = listAccountIds(runtimeConfig)
+    .map((id) => resolveAccount(runtimeConfig, id))
     .filter((a) => a.enabled && a.configured);
-  const defaultId = (cfg?.defaultAccount ?? "").trim();
+  const defaultId = (runtimeConfig?.defaultAccount ?? "").trim();
   if (!defaultId) return accounts;
   const idx = accounts.findIndex((a) => a.accountId === defaultId);
   if (idx <= 0) return accounts;
@@ -48,11 +48,11 @@ export function listEnabledAccounts(cfg) {
 }
 
 export async function getWecomCallbackBase() {
-  const config = global.ConfigManager?.get?.("wecom");
+  const config = global.CommonConfigRegistry?.get?.("wecom");
   if (!config?.read) return normalizeCallbackBase(null);
   try {
-    const cfg = await config.read(true);
-    return normalizeCallbackBase(cfg?.callbackPath);
+    const runtimeConfig = await config.read(true);
+    return normalizeCallbackBase(runtimeConfig?.callbackPath);
   } catch {
     return normalizeCallbackBase(null);
   }

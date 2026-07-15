@@ -2,7 +2,7 @@
  * Wechat-entreprise Tasker：回调解密与派发 → `wecom.message` / `wecom.notice`；发送 `message/send`。
  * 与 system-Core / Feishu-Core 一致：协议与凭证均在 `core/*` 闭环，不修改 `src/infrastructure`。
  */
-import { TaskerBase } from "../../../src/infrastructure/bot/tasker.js";
+import { TaskerBase } from "../../../src/infrastructure/tasker/tasker-base.js";
 import { EventNormalizer } from "../../../src/utils/event-normalizer.js";
 import fs from "fs/promises";
 import {
@@ -52,25 +52,25 @@ class WecomTasker {
   path = "wecom";
 
   async _getWecomCfg() {
-    const config = global.ConfigManager?.get?.("wecom");
+    const config = global.CommonConfigRegistry?.get?.("wecom");
     if (!config?.read) return null;
     try {
       return await config.read(true);
     } catch (e) {
-      Bot.makeLog("warn", `[WeCom] 读取配置失败: ${e?.message}`, "Wecom");
+      AgentRuntime.makeLog("warn", `[WeCom] 读取配置失败: ${e?.message}`, "Wecom");
       return null;
     }
   }
 
   async load() {
-    const cfg = await this._getWecomCfg();
-    if (!cfg?.enabled) {
-      Bot.makeLog("info", "[WeCom] 未启用，跳过", "Wecom");
+    const runtimeConfig = await this._getWecomCfg();
+    if (!runtimeConfig?.enabled) {
+      AgentRuntime.makeLog("info", "[WeCom] 未启用，跳过", "Wecom");
       return;
     }
-    const accounts = listEnabledAccounts(cfg);
+    const accounts = listEnabledAccounts(runtimeConfig);
     if (!accounts.length) {
-      Bot.makeLog("warn", "[WeCom] 无可用账号（corpId/agentId/agentSecret）", "Wecom");
+      AgentRuntime.makeLog("warn", "[WeCom] 无可用账号（corpId/agentId/agentSecret）", "Wecom");
       return;
     }
     for (const account of accounts) {
@@ -78,7 +78,7 @@ class WecomTasker {
         await this._ensureSecretFromFile(account);
         await this._startAccount(account);
       } catch (err) {
-        Bot.makeLog("error", `[WeCom] 启动 ${account.accountId} 失败: ${err?.message}`, "Wecom", err);
+        AgentRuntime.makeLog("error", `[WeCom] 启动 ${account.accountId} 失败: ${err?.message}`, "Wecom", err);
       }
     }
   }
@@ -95,7 +95,7 @@ class WecomTasker {
     if (!account.configured) return;
     const { accountId } = account;
     const selfId = toSelfId(accountId);
-    if (!Bot[selfId]) {
+    if (!AgentRuntime[selfId]) {
       TaskerBase.createBotInstance(
         {
           id: selfId,
@@ -104,15 +104,15 @@ class WecomTasker {
           info: { corp_id: account.corpId, agent_id: account.agentId },
           tasker: this,
         },
-        Bot
+        AgentRuntime
       );
-      if (!Bot.uin.includes(selfId)) Bot.uin.push(selfId);
+      if (!AgentRuntime.uin.includes(selfId)) AgentRuntime.uin.push(selfId);
     }
-    const cfg = await this._getWecomCfg();
-    const merged = cfg ? mergeAccountConfig(cfg, accountId) : {};
+    const runtimeConfig = await this._getWecomCfg();
+    const merged = runtimeConfig ? mergeAccountConfig(runtimeConfig, accountId) : {};
     const base = normalizeCallbackBase(merged.callbackPath);
-    const port = global.cfg?.port ?? global.cfg?._port ?? "";
-    Bot.makeLog(
+    const port = global.runtimeConfig?.port ?? global.runtimeConfig?._port ?? "";
+    AgentRuntime.makeLog(
       "mark",
       `[WeCom] 账号 ${accountId} 已注册；回调 URL: https://你的域名${base}/${accountId}（XRK 端口 ${port}）`,
       "Wecom"
@@ -126,9 +126,9 @@ class WecomTasker {
     const echostr = query?.echostr;
     if (!echostr || !msg_signature) return { ok: false, reason: "缺少 msg_signature 或 echostr" };
 
-    const cfg = await this._getWecomCfg();
-    if (!cfg) return { ok: false, reason: "配置不可用" };
-    const account = resolveAccount(cfg, accountId);
+    const runtimeConfig = await this._getWecomCfg();
+    if (!runtimeConfig) return { ok: false, reason: "配置不可用" };
+    const account = resolveAccount(runtimeConfig, accountId);
     if (!account.token || !account.encodingAESKey || !account.corpId) {
       return { ok: false, reason: "回调 token / encodingAESKey / corpId 未配置" };
     }
@@ -148,28 +148,28 @@ class WecomTasker {
    * @returns {{ status: number, body: string }}
    */
   async handleEncryptedPost(accountId, query, xmlRaw) {
-    const cfg = await this._getWecomCfg();
-    if (!cfg) return { status: 503, body: "wecom config unavailable" };
-    if (!cfg.enabled) return { status: 503, body: "wecom disabled" };
+    const runtimeConfig = await this._getWecomCfg();
+    if (!runtimeConfig) return { status: 503, body: "wecom config unavailable" };
+    if (!runtimeConfig.enabled) return { status: 503, body: "wecom disabled" };
 
-    const merged = mergeAccountConfig(cfg, accountId);
+    const merged = mergeAccountConfig(runtimeConfig, accountId);
     const token = merged.token?.trim();
     const encodingAESKey = merged.encodingAESKey?.trim();
     const corpId = merged.corpId?.trim();
 
     if (!token || !encodingAESKey || !corpId) {
-      Bot.makeLog("warn", "[WeCom] 回调缺少 token/encodingAESKey/corpId", "Wecom");
+      AgentRuntime.makeLog("warn", "[WeCom] 回调缺少 token/encodingAESKey/corpId", "Wecom");
       return { status: 500, body: "server misconfigured" };
     }
 
     const encrypt = extractEncryptFromCallbackXml(xmlRaw);
     if (!encrypt) {
-      Bot.makeLog("warn", "[WeCom] POST 无 Encrypt 字段", "Wecom");
+      AgentRuntime.makeLog("warn", "[WeCom] POST 无 Encrypt 字段", "Wecom");
       return { status: 400, body: "bad xml" };
     }
 
     if (!verifyMsgSignature(token, query?.timestamp, query?.nonce, encrypt, query?.msg_signature)) {
-      Bot.makeLog("warn", "[WeCom] POST 签名无效", "Wecom");
+      AgentRuntime.makeLog("warn", "[WeCom] POST 签名无效", "Wecom");
       return { status: 403, body: "signature" };
     }
 
@@ -178,7 +178,7 @@ class WecomTasker {
       this.handleIncomingXml(accountId, innerXml);
       return { status: 200, body: "success" };
     } catch (e) {
-      Bot.makeLog("error", `[WeCom] 解密失败: ${e?.message}`, "Wecom", e);
+      AgentRuntime.makeLog("error", `[WeCom] 解密失败: ${e?.message}`, "Wecom", e);
       return { status: 400, body: "decrypt failed" };
     }
   }
@@ -197,7 +197,7 @@ class WecomTasker {
       return;
     }
 
-    Bot.makeLog("info", `[WeCom] 未处理的消息类型: ${msgType}`, "Wecom");
+    AgentRuntime.makeLog("info", `[WeCom] 未处理的消息类型: ${msgType}`, "Wecom");
   }
 
   _emitNotice(accountId, parsed) {
@@ -215,16 +215,16 @@ class WecomTasker {
       wecom_event_key: parsed.eventKey || null,
       wecom_parsed: parsed,
     };
-    data.bot = Bot[selfId] || null;
+    data.bot = AgentRuntime[selfId] || null;
     data.event_id = `wecom_${selfId}_evt_${parsed.event}_${data.time}_${Math.random().toString(36).slice(2, 8)}`;
     data.tasker = "wecom";
     data.isWecom = true;
-    if (data.bot) Bot.em("wecom.notice", data);
+    if (data.bot) AgentRuntime.em("wecom.notice", data);
   }
 
   async _emitMessageAsync(accountId, parsed, rawXml) {
-    const cfg = await this._getWecomCfg();
-    const merged = cfg ? mergeAccountConfig(cfg, accountId) : {};
+    const runtimeConfig = await this._getWecomCfg();
+    const merged = runtimeConfig ? mergeAccountConfig(runtimeConfig, accountId) : {};
 
     const selfId = toSelfId(accountId);
     const chatId = parsed.chatId || "";
@@ -264,9 +264,9 @@ class WecomTasker {
       wecom_raw_xml: rawXml,
     };
 
-    data.bot = Bot[selfId] || null;
+    data.bot = AgentRuntime[selfId] || null;
     if (!data.bot) {
-      Bot.makeLog("warn", `[WeCom] Bot 不存在: ${selfId}`, selfId);
+      AgentRuntime.makeLog("warn", `[WeCom] AgentRuntime 不存在: ${selfId}`, selfId);
       return;
     }
     data.event_id = `wecom_${selfId}_${msgId}_${data.time}`;
@@ -285,8 +285,8 @@ class WecomTasker {
       defaultSubType: isGroup ? "normal" : "friend",
       defaultUserId: fromUser,
     });
-    Bot.makeLog("info", `[WeCom] 消息 ${selfId} <= ${isGroup ? chatId : fromUser}`, selfId);
-    Bot.em("wecom.message", data);
+    AgentRuntime.makeLog("info", `[WeCom] 消息 ${selfId} <= ${isGroup ? chatId : fromUser}`, selfId);
+    AgentRuntime.em("wecom.message", data);
   }
 
   async sendFriendMsg(data, msg) {
@@ -304,9 +304,9 @@ class WecomTasker {
   }
 
   async _send(accountId, target, text) {
-    const cfg = await this._getWecomCfg();
-    if (!cfg) throw new Error("WeCom 配置不可用");
-    const account = resolveAccount(cfg, accountId);
+    const runtimeConfig = await this._getWecomCfg();
+    if (!runtimeConfig) throw new Error("WeCom 配置不可用");
+    const account = resolveAccount(runtimeConfig, accountId);
     if (!account.configured) throw new Error(`WeCom 账号 "${accountId}" 未配置`);
     let content = String(text ?? "");
     const prefix = account.config?.responsePrefix;
@@ -336,7 +336,7 @@ export function getWecomTasker() {
 
 export { _wecomTasker as wecomTaskerSingleton };
 
-export function registerWecomTasker(bot = globalThis.Bot) {
+export function registerWecomTasker(bot = globalThis.AgentRuntime) {
   if (!bot) return;
   if (!Array.isArray(bot.tasker)) bot.tasker = [];
   if (!bot.tasker.some((t) => t?.path === _wecomTasker.path)) {
