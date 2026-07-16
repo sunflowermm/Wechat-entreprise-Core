@@ -1,10 +1,10 @@
 /**
  * 企业微信事件监听：订阅 wecom.message / wecom.notice，挂载 e.reply 后走 plugins.deal。
  */
-import EventListenerBase from "../../../src/infrastructure/listener/base.js";
+import ListenerBase from "../../../src/infrastructure/listener/base.js";
 import { errorHandler, ErrorCodes } from "../../../src/utils/error-handler.js";
 
-export default class WecomEvent extends EventListenerBase {
+export default class WecomEvent extends ListenerBase {
   _listenersInitialized = false;
 
   constructor() {
